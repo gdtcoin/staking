@@ -299,7 +299,7 @@ pub mod gdtc_staking {
 
         // 获取当前时间戳并计算质押结束时间
         let current_timestamp = clock.unix_timestamp as u64;
-        let stake_end_time = test_generate_release_timestamp(current_timestamp, stake_type);
+        let stake_end_time = generate_release_timestamps(current_timestamp, stake_type);
 
         // 更新用户账户
         user_instance.total_deposited_amount = user_instance
