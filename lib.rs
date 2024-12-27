@@ -12,7 +12,7 @@ use structures::{
 };
 use tools::{generate_release_timestamps, test_generate_release_timestamp};
 
-declare_id!("6iadRi4ps7itomsTNa34RikS6hkmx2z5Ls1h9EqLPu1y");
+declare_id!("8bveBHZYrNVQ3hXrfmhCr1GMArLqePfL14bwyt8LdyPR");
 
 pub fn update_reward_pool(current_timestamp: u64, staking_instance: &mut StakingInstance) {
     // 遍历每个质押池
@@ -249,6 +249,16 @@ pub mod gdtc_staking {
 
         let clock = Clock::get().expect("Failed to get clock");
 
+        let program_id = ctx.program_id; // 获取当前合约的程序ID
+                                         // 计算 staking_instance 的派生地址
+        let (expected_staking_address, bump_seed) =
+            Pubkey::find_program_address(&[crate::STAKING_SEED.as_ref()], program_id);
+
+        // 确保 staking_instance 是由合约程序派生的
+        if staking_instance.key() != expected_staking_address {
+            return Err(ErrorCode::InvalidStakingInstance.into());
+        }
+
         // 检查用户 LP Token 账户的 Mint 是否与质押池的 Mint 匹配
         if staking_instance.staking_token_mint != user_lp_token_account.mint {
             return Err(ErrorCode::MintAccountIsNotMatch.into());
@@ -289,7 +299,7 @@ pub mod gdtc_staking {
 
         // 获取当前时间戳并计算质押结束时间
         let current_timestamp = clock.unix_timestamp as u64;
-        let stake_end_time = generate_release_timestamps(current_timestamp, stake_type);
+        let stake_end_time = test_generate_release_timestamp(current_timestamp, stake_type);
 
         // 更新用户账户
         user_instance.total_deposited_amount = user_instance
@@ -336,6 +346,16 @@ pub mod gdtc_staking {
         let user_instance = &mut ctx.accounts.user_instance;
         let user_lp_token_account = &mut ctx.accounts.user_lp_token_account;
         let gdtc_lp_in_account = &ctx.accounts.gdtc_lp_in_account;
+
+        let program_id = ctx.program_id; // 获取当前合约的程序ID
+
+        let (expected_staking_address, bump_seed) =
+            Pubkey::find_program_address(&[crate::STAKING_SEED.as_ref()], program_id);
+
+        // 确保 staking_instance 是由合约程序派生的
+        if staking_instance.key() != expected_staking_address {
+            return Err(ErrorCode::InvalidStakingInstance.into());
+        }
 
         if staking_instance.staking_token_mint != user_lp_token_account.mint {
             return Err(ErrorCode::MintAccountIsNotMatch.into());
@@ -438,6 +458,15 @@ pub mod gdtc_staking {
         let gdtc_reward_out_account = &ctx.accounts.gdtc_reward_out_account;
         let user_super_gdtc_token_account = &mut ctx.accounts.user_super_gdtc_token_account;
 
+        let program_id = ctx.program_id; // 获取当前合约的程序ID
+                                         // 计算 staking_instance 的派生地址
+        let (expected_staking_address, bump_seed) =
+            Pubkey::find_program_address(&[crate::STAKING_SEED.as_ref()], program_id);
+
+        // 确保 staking_instance 是由合约程序派生的
+        if staking_instance.key() != expected_staking_address {
+            return Err(ErrorCode::InvalidStakingInstance.into());
+        }
         // 获取当前时间戳
         let clock = Clock::get().map_err(|_| ErrorCode::ClockUnavailable)?;
         let current_timestamp = clock.unix_timestamp as u64;
@@ -445,6 +474,10 @@ pub mod gdtc_staking {
         if user_instance.user_address != ctx.accounts.user_gdtc_token_account.owner.key() {
             return Err(ErrorCode::UserAccountIsNotMatch.into());
         }
+        if super_instance.user_address != user_super_gdtc_token_account.owner.key() {
+            return Err(ErrorCode::UserAccountIsNotMatch.into());
+        }
+
         // 检查用户是否有质押
         if !user_instance.staked_info[index].is_staked {
             msg!(
@@ -609,4 +642,7 @@ pub enum ErrorCode {
 
     #[msg("User need cliam rewards.")]
     NeedCliamRewards,
+
+    #[msg("The provided staking instance is not a valid staking instance for this contract.")]
+    InvalidStakingInstance,
 }
