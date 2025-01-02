@@ -12,7 +12,7 @@ use structures::{
 };
 use tools::{generate_release_timestamps, test_generate_release_timestamp};
 
-declare_id!("8bveBHZYrNVQ3hXrfmhCr1GMArLqePfL14bwyt8LdyPR");
+declare_id!("AAaENevvTe2HM7TcP6AHLq49NhZbB3xKPxYCrjKkyv2Q");
 
 pub fn update_reward_pool(current_timestamp: u64, staking_instance: &mut StakingInstance) {
     // 遍历每个质押池
@@ -21,7 +21,6 @@ pub fn update_reward_pool(current_timestamp: u64, staking_instance: &mut Staking
         if pool.total_shares == 0 {
             continue;
         }
-
         // 计算时间差（当前时间戳 - 上次奖励时间戳）
         let time_diff = current_timestamp
             .checked_sub(pool.last_reward_timestamp)
@@ -258,6 +257,24 @@ pub mod gdtc_staking {
         if staking_instance.key() != expected_staking_address {
             return Err(ErrorCode::InvalidStakingInstance.into());
         }
+        //用户账户验证
+        let (expected_user_address, bump_seed) = Pubkey::find_program_address(
+            &[
+                crate::USER_SEED.as_ref(),
+                staking_instance.key().as_ref(),
+                ctx.accounts.authority.key().as_ref(),
+            ],
+            program_id,
+        );
+        msg!(
+            "expected_user_address is: {},user_instance: {}",
+            expected_user_address.key(),
+            user_instance.key()
+        );
+        // 确保 staking_instance 是由合约程序派生的
+        if user_instance.key() != expected_user_address {
+            return Err(ErrorCode::InvalidUserInstance.into());
+        }
 
         // 检查用户 LP Token 账户的 Mint 是否与质押池的 Mint 匹配
         if staking_instance.staking_token_mint != user_lp_token_account.mint {
@@ -280,6 +297,38 @@ pub mod gdtc_staking {
         if stake_type > 2 {
             return Err(ErrorCode::InvalidStakeType.into());
         }
+        // 获取当前时间戳并计算质押结束时间
+        let current_timestamp = clock.unix_timestamp as u64;
+
+        msg!("staking time is :{}", current_timestamp);
+        let is_end = match stake_type {
+            0 => {
+                if current_timestamp > 2358810461 {
+                    true
+                } else {
+                    false
+                }
+            }
+            1 => {
+                if current_timestamp > 2350861661 {
+                    true
+                } else {
+                    false
+                }
+            }
+            2 => {
+                if current_timestamp > 2335136861 {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => true, // 对于无效的 stake_type，直接认为已经结束
+        };
+
+        if is_end {
+            return Err(ErrorCode::StakingEnded.into());
+        }
 
         // user_instance.total_deposited_amount = user_instance
         //     .total_deposited_amount
@@ -297,8 +346,6 @@ pub mod gdtc_staking {
             return Err(ErrorCode::InvalidStakeType.into());
         }
 
-        // 获取当前时间戳并计算质押结束时间
-        let current_timestamp = clock.unix_timestamp as u64;
         let stake_end_time = generate_release_timestamps(current_timestamp, stake_type);
 
         // 更新用户账户
@@ -355,6 +402,24 @@ pub mod gdtc_staking {
         // 确保 staking_instance 是由合约程序派生的
         if staking_instance.key() != expected_staking_address {
             return Err(ErrorCode::InvalidStakingInstance.into());
+        }
+        //用户账户验证
+        let (expected_user_address, bump_seed) = Pubkey::find_program_address(
+            &[
+                crate::USER_SEED.as_ref(),
+                staking_instance.key().as_ref(),
+                ctx.accounts.authority.key().as_ref(),
+            ],
+            program_id,
+        );
+        msg!(
+            "expected_user_address is: {},user_instance: {}",
+            expected_user_address.key(),
+            user_instance.key()
+        );
+        // 确保 staking_instance 是由合约程序派生的
+        if user_instance.key() != expected_user_address {
+            return Err(ErrorCode::InvalidUserInstance.into());
         }
 
         if staking_instance.staking_token_mint != user_lp_token_account.mint {
@@ -467,6 +532,49 @@ pub mod gdtc_staking {
         if staking_instance.key() != expected_staking_address {
             return Err(ErrorCode::InvalidStakingInstance.into());
         }
+
+        //用户账户验证
+        let (expected_user_address, bump_seed) = Pubkey::find_program_address(
+            &[
+                crate::USER_SEED.as_ref(),
+                staking_instance.key().as_ref(),
+                user_instance.user_address.key().as_ref(),
+            ],
+            program_id,
+        );
+        msg!(
+            "expected_user_address is: {},user_instance: {}",
+            expected_user_address.key(),
+            user_instance.key()
+        );
+        // 确保 staking_instance 是由合约程序派生的
+        if user_instance.key() != expected_user_address {
+            return Err(ErrorCode::InvalidUserInstance.into());
+        }
+
+        //用户上级账户验证
+        let (expected_user_superior_address, bump_seed) = Pubkey::find_program_address(
+            &[
+                crate::USER_SEED.as_ref(),
+                staking_instance.key().as_ref(),
+                user_super_gdtc_token_account.owner.key().as_ref(),
+            ],
+            program_id,
+        );
+        msg!(
+            "expected_user_superior_address is: {},user_instance: {}",
+            expected_user_superior_address.key(),
+            super_instance.key()
+        );
+        // 确保 staking_instance 是由合约程序派生的
+        if super_instance.key() != expected_user_superior_address {
+            return Err(ErrorCode::InvalidUserInstance.into());
+        }
+
+        if staking_instance.reward_token_mint != gdtc_reward_out_account.mint {
+            return Err(ErrorCode::MintAccountIsNotMatch.into());
+        }
+
         // 获取当前时间戳
         let clock = Clock::get().map_err(|_| ErrorCode::ClockUnavailable)?;
         let current_timestamp = clock.unix_timestamp as u64;
@@ -540,7 +648,8 @@ pub mod gdtc_staking {
                 ],
                 signer_seeds,
             )?;
-            accumulated_reward = accumulated_reward - (accumulated_reward / 10);
+            //取消上级百分之十从挖矿者奖励中拿出
+            // accumulated_reward = accumulated_reward - (accumulated_reward / 10);
         }
 
         // 生成从 GDTC 托管账户到用户 LP Token 账户的转账指令
@@ -645,4 +754,10 @@ pub enum ErrorCode {
 
     #[msg("The provided staking instance is not a valid staking instance for this contract.")]
     InvalidStakingInstance,
+
+    #[msg("The staking has ended for this instance.")]
+    StakingEnded,
+
+    #[msg("The provided user instance is not a valid user instance for this contract.")]
+    InvalidUserInstance,
 }
