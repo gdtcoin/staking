@@ -40,11 +40,11 @@ pub fn update_reward_pool(current_timestamp: u64, staking_instance: &mut Staking
         // 更新 `accumulated_reward_per_share`
         if pool.total_shares > 0 {
             // 每份奖励计算
-            let reward_per_share = income
-                .checked_mul(COMPUTATION_DECIMALS) // 精度调整
+            let reward_per_share = (income as u128)
+                .checked_mul(COMPUTATION_DECIMALS as u128) // 精度调整
                 .unwrap_or(0)
-                .checked_div(pool.total_shares) // 每份奖励
-                .unwrap_or(0);
+                .checked_div(pool.total_shares as u128) // 每份奖励
+                .unwrap_or(0) as u64;
 
             // 累加每份奖励的累计值
             pool.accumulated_reward_per_share = pool
