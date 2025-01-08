@@ -178,6 +178,16 @@ pub mod gdtc_staking {
         staking_instance.reward_token_mint = ctx.accounts.reward_token_mint.key();
         staking_instance.staking_token_mint = ctx.accounts.staking_token_mint.key();
         staking_instance.lp_token_account = ctx.accounts.lp_token_account.key();
+
+        let program_id = ctx.program_id; // 获取当前合约的程序ID
+                                         // 计算 staking_instance 的派生地址
+        let (expected_pda_address, bump_seed) =
+            Pubkey::find_program_address(&[crate::LPTOKEN_SEED.as_ref()], program_id);
+
+        if expected_pda_address != ctx.accounts.lp_token_account.owner.key() {
+            return Err(ErrorCode::PdaAccountIsNotMatch.into());
+        }
+
         // 初始化 3 个质押池
         staking_instance.pools = [
             StakingPool {
@@ -533,6 +543,13 @@ pub mod gdtc_staking {
             return Err(ErrorCode::InvalidStakingInstance.into());
         }
 
+        let (expected_pda_address, bump_seed) =
+            Pubkey::find_program_address(&[crate::LPTOKEN_SEED.as_ref()], program_id);
+
+        if expected_pda_address != gdtc_reward_out_account.owner.key() {
+            return Err(ErrorCode::PdaAccountIsNotMatch.into());
+        }
+
         //用户账户验证
         let (expected_user_address, bump_seed) = Pubkey::find_program_address(
             &[
@@ -621,6 +638,11 @@ pub mod gdtc_staking {
 
         // 检查奖励账户余额是否足够
         if gdtc_reward_out_account.amount < accumulated_reward {
+            user_instance.staked_info[index].can_cancel_stake = true;
+            user_instance.total_deposited_amount = user_instance
+                .total_deposited_amount
+                .checked_sub(user_instance.staked_info[index].deposited_amount)
+                .ok_or(ErrorCode::Overflow)?;
             return Err(ErrorCode::InsufficientRewardBalance.into());
         }
 
@@ -760,4 +782,7 @@ pub enum ErrorCode {
 
     #[msg("The provided user instance is not a valid user instance for this contract.")]
     InvalidUserInstance,
+
+    #[msg("Pda address  does not match.")]
+    PdaAccountIsNotMatch,
 }
