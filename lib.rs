@@ -643,7 +643,7 @@ pub mod gdtc_staking {
                 .total_deposited_amount
                 .checked_sub(user_instance.staked_info[index].deposited_amount)
                 .ok_or(ErrorCode::Overflow)?;
-            return Err(ErrorCode::InsufficientRewardBalance.into());
+            return Ok(());
         }
 
         let bump_seed = ctx.bumps.pda_account;
