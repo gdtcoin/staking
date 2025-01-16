@@ -641,11 +641,13 @@ pub mod gdtc_staking {
             if current_timestamp >= user_instance.staked_info[index].stake_end_time
                 && user_instance.user_address == ctx.accounts.authority.key()
             {
-                user_instance.staked_info[index].can_cancel_stake = true;
-                user_instance.total_deposited_amount = user_instance
-                    .total_deposited_amount
-                    .checked_sub(user_instance.staked_info[index].deposited_amount)
-                    .ok_or(ErrorCode::Overflow)?;
+                if user_instance.staked_info[index].can_cancel_stake != true {
+                    user_instance.staked_info[index].can_cancel_stake = true;
+                    user_instance.total_deposited_amount = user_instance
+                        .total_deposited_amount
+                        .checked_sub(user_instance.staked_info[index].deposited_amount)
+                        .ok_or(ErrorCode::Overflow)?;
+                }
             }
             return Ok(());
         }
